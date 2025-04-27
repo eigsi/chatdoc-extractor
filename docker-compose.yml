@@ -1,0 +1,27 @@
+
+services: 
+
+  # ---------- DATABASE CONTAINER -------------
+  db: 
+    image: postgres:13
+    environment: 
+      POSTGRES_USER: circu-iq
+      POSTGRES_PASSWORD: stage-test
+      POSTGRES_DB: circu-iq
+    ports: 
+      - "5432:5432"
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data
+  
+  # -------------- ADMINER CONTAINER --------------
+  adminer: 
+    image: adminer
+    ports: 
+      - "8080:8080"
+    depends_on:
+      - db
+
+  # ---------- PERSISTANT VOLUME FOR THE DATABASE -------------
+  
+volumes:
+  postgres_data:
