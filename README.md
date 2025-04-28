@@ -1,6 +1,6 @@
 # :cyclone: ChatDoc Extractor
 
-## :scroll: Description
+## :surfer: Description
 **ChatDoc Extractor** is a tool that parses local PDF files containing unstructured information, uses ChatGPT to extract relevant data, and automatically loads that data into a database for easy querying and reuse.
 
 ## :pencil2: Install the project
@@ -57,9 +57,9 @@ Use Docker Compose to start the PostgreSQL database and Adminer containers:
   python3 main.py
   ```
 
-## :books: The Stack (dev)
+## :books: The Stack
 - **LangChain**  
+- **OpenAI API**
 - **SQL Alchemy** 
 - **Chroma db**
-- **OpenAI API**
 - **Docker**
