@@ -1,6 +1,5 @@
 # :cyclone: ChatDoc Extractor
 
-## :surfer: Description
 **ChatDoc Extractor** is a tool that parses local PDF files containing unstructured information, uses ChatGPT to extract relevant data, and automatically loads that data into a database for easy querying and reuse.
 
 ## :pencil2: Install the project
