@@ -18,14 +18,16 @@ class State(TypedDict):
 
 # --------------------------- GRAPH STEPS --------------------------- 
 def retrieve(state: State) -> dict:
-    docs: List[Document] = vector_store.similarity_search(state["question"], k=30)
+    docs: List[Document] = vector_store.similarity_search(state["question"], k=35)
     return { "context": docs }
 
 def generate(state: State) -> dict:
+    top_chunk = state["context"][0]
     context_text = "\n\n".join(doc.page_content for doc in state["context"])
     messages = prompt.invoke({
         "question": state["question"], 
-        "context": context_text
+        "context": context_text,
+        "main_image": top_chunk.metadata.get("main_image", "")
          })
     answer = llm.invoke(messages)
     return {"answer": answer.content}
@@ -39,8 +41,12 @@ graph = (
 )
 
 # -------------------------- ASK QUESTION ---------------------------
-question = "Retrieve all the disassembly steps for this battery pack, including sub-steps formulated from each step’s description, the necessary tools for each step, and the corresponding photos."
-
+question = (
+    "Using this context and the exact step list and durations from the Section 2.3 Disassembly Times table, "
+    "retrieve all the disassembly steps for this battery pack. For each step, use the “Description:” section "
+    "to formulate simple bullet-point sub-steps, list the required tools, summarize the risks from “Identified Risks:” "
+    "in one very short phrase, and include the corresponding photo path from metadata."
+)
 
 result = graph.invoke({ "question": question })
 answer_text = result["answer"]
@@ -69,6 +75,7 @@ class Step(BaseModel):
     name: str
     number: int
     time: float
+    risks: str
     sub_steps: List[SubStep]
     pictures: List[Picture]
     tools: List[Tool]

@@ -5,6 +5,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
+from glob import glob
+from utils.images import extract_main_image
 from models import init_db
 from dotenv import load_dotenv
 
@@ -40,12 +42,13 @@ template = """Respond **only** with a valid JSON respecting exactly this format:
   "batteryPacks": [
     {{
       "name": "<name of the pack>",
-      "picture": "<url or path>",
+      "picture": "{main_image}",
       "steps": [
         {{
           "name": "<name of the step>",
           "number": <number>,
           "time": <duration as float>,
+          "risks": "<risks as key words >",
           "sub_steps": [
             {{
               "name": "<name of the sub-step>",
@@ -74,10 +77,10 @@ template = """Respond **only** with a valid JSON respecting exactly this format:
 }}
 
 
-Context from the course: {context}
+Context from the battery pack disassembly: {context}
 Question: {question}
 
-— Do not include any comments or explanations before or after the JSON.
+— Do not include any comments, trailing commas, or ellipses (`…`) in the JSON.
 — If you do not find new items, return "batteryPacks": [].
 """
 
@@ -85,7 +88,19 @@ prompt = PromptTemplate.from_template(template)
 
 # --------------------------- SET UP VECTOR STORE ---------------------------
 if __name__ == "__main__":
+    # EXTRACT MAIN IMAGE
+    main_images = {
+      pdf_file: extract_main_image(pdf_file)
+      for pdf_file in glob(f"{DOCS_PATH}/**/*.pdf", recursive=True)
+    }
+
     docs = load_and_split_documents(DOCS_PATH)
+
+    for doc in docs:
+      src = doc.metadata["source"]
+      doc.metadata["main_image"] = main_images.get(src, "")
+      
+  
     vector_store = create_vector_store(PERSIST_DIR)
     vector_store.add_documents(docs)
     print("✅ Vector store initialisé dans", PERSIST_DIR)

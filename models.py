@@ -30,6 +30,7 @@ class StepModel(Base):
     name = Column(String, nullable=False)
     number = Column(Integer, nullable=False)
     time = Column(Float, nullable=True)
+    risks = Column(String, nullable=True)
     batteryPack_id = Column(UUID(as_uuid=True), ForeignKey("batteryPack.id"), nullable=False)
 
     # relationships
