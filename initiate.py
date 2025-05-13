@@ -35,14 +35,41 @@ def create_vector_store(persist_directory):
     return client
 
 # ----------------------------- PROMPT TEMPLATE -----------------------------
-template = """Réponds **uniquement** par un JSON valide respectant exactement ce schéma:
+template = """Respond **only** with a valid JSON respecting exactly this format:
 {{
-  "lichens": [
+  "batteryPacks": [
     {{
-      "name": "<nom du lichen>",
-      "description": "<courte description>"
-    }},
-    {{… plusieurs fois selon ce que tu trouves …}}
+      "name": "<name of the pack>",
+      "picture": "<url or path>",
+      "steps": [
+        {{
+          "name": "<name of the step>",
+          "number": <number>,
+          "time": <duration as float>,
+          "sub_steps": [
+            {{
+              "name": "<name of the sub-step>",
+              "number": <number>
+            }}
+            {{… repeat as many as you find …}}
+          ],
+          "pictures": [
+            {{
+              "link": "<url of the picture>"
+            }}
+            {{… repeat as many as you find …}}
+          ],
+          "tools": [
+            {{
+              "name": "<name of the tool>"
+            }}
+            {{… repeat as many as you find …}}
+          ]
+        }}
+        {{… repeat as many as you find …}}
+      ]
+    }}
+    {{… repeat as many as you find …}}
   ]
 }}
 
@@ -50,8 +77,9 @@ template = """Réponds **uniquement** par un JSON valide respectant exactement c
 Context from the course: {context}
 Question: {question}
 
-— Ne mets aucun commentaire, aucune explication, rien avant ou après le JSON.  
-— Si tu ne trouve pas de nouveaux lichens, renvoie `"lichens": []`."""
+— Do not include any comments or explanations before or after the JSON.
+— If you do not find new items, return "batteryPacks": [].
+"""
 
 prompt = PromptTemplate.from_template(template)
 
