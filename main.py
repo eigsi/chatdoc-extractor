@@ -7,6 +7,10 @@ from initiate import create_vector_store, prompt, PERSIST_DIR, LLM_NAME
 from pydantic import BaseModel, ValidationError
 from models import SessionLocal, BatteryPackModel,StepModel, SubStepModel, ToolModel, PictureModel
 import uuid
+from glob import glob
+import json
+from utils.images import extract_step_images 
+import sys
 
 llm = init_chat_model(LLM_NAME, model_provider="openai")
 vector_store = create_vector_store(PERSIST_DIR)
@@ -16,6 +20,21 @@ class State(TypedDict):
     context: List[Document]
     answer: str
 
+# --------------------------- EXTRACT STEP IMAGES ---------------------------
+DOCS_PATH = "docs/"
+
+raw_map = {
+    pdf: extract_step_images(pdf)["step_images"]
+    for pdf in glob(f"{DOCS_PATH}/**/*.pdf", recursive=True)
+}
+all_step_imgs = {}
+for pdf, steps in raw_map.items():
+    wrapped = {}
+    for step_name, paths in steps.items():
+        wrapped[step_name] = [{ "link": p } for p in paths]
+    all_step_imgs[pdf] = wrapped
+print(all_step_imgs)
+    
 # --------------------------- GRAPH STEPS --------------------------- 
 def retrieve(state: State) -> dict:
     docs: List[Document] = vector_store.similarity_search(state["question"], k=35)
@@ -24,10 +43,13 @@ def retrieve(state: State) -> dict:
 def generate(state: State) -> dict:
     top_chunk = state["context"][0]
     context_text = "\n\n".join(doc.page_content for doc in state["context"])
+    src = top_chunk.metadata["source"]
+    
     messages = prompt.invoke({
         "question": state["question"], 
         "context": context_text,
-        "main_image": top_chunk.metadata.get("main_image", "")
+        "main_image": top_chunk.metadata.get("main_image", ""),
+        "step_images_map_json":  json.dumps(all_step_imgs[src])
          })
     answer = llm.invoke(messages)
     return {"answer": answer.content}
@@ -42,10 +64,13 @@ graph = (
 
 # -------------------------- ASK QUESTION ---------------------------
 question = (
-    "Using this context and the exact step list and durations from the Section 2.3 Disassembly Times table, "
-    "retrieve all the disassembly steps for this battery pack. For each step, use the “Description:” section "
-    "to formulate simple bullet-point sub-steps, list the required tools, summarize the risks from “Identified Risks:” "
-    "in one very short phrase, and include the corresponding photo path from metadata."
+    "Using this context, retrieve all disassembly steps for the battery pack by detecting each “Step X: …” title." 
+    "For each step, do the following:\n"
+    "  1. From the “Description:” section, generate concise bullet-point sub-steps.\n"
+    "  2. List required tools.\n"
+    "  3. Take the duration from the “Time Estimation:” field.\n"
+    "  4. Summarize the “Identified Risks:” in a single very short phrase.\n"
+    "  5. Insert the corresponding photo paths (from metadata) under “pictures”."
 )
 
 result = graph.invoke({ "question": question })
@@ -135,6 +160,7 @@ try:
                 id=step["id"],
                 name=step["name"],
                 number=step["number"],
+                risks=step["risks"],
                 time=step["time"],
                 batteryPack_id=step["batteryPack_id"]
             )  
