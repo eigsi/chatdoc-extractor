@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine,Column, String, Integer, ForeignKey, Float
+from datetime import timezone, datetime
+from sqlalchemy import create_engine,Column, String, Integer, ForeignKey, Float, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -22,6 +23,7 @@ class BatteryPackModel(Base):
 
     # relationships
     steps = relationship("StepModel", back_populates="battery_pack", cascade="all, delete-orphan")
+    disassemblies = relationship("DisassemblyModel", back_populates="battery_pack")
 
 class StepModel(Base):
     __tablename__ = "steps"
@@ -35,6 +37,7 @@ class StepModel(Base):
 
     # relationships
     battery_pack = relationship("BatteryPackModel", back_populates="steps")
+    timers = relationship("TimerModel", back_populates="step", cascade="all, delete-orphan")
     sub_steps = relationship("SubStepModel", back_populates="step", cascade="all, delete-orphan")
     pictures = relationship("PictureModel", back_populates="step", cascade="all, delete-orphan")
     tools = relationship("ToolModel", back_populates="step", cascade="all, delete-orphan")
@@ -69,6 +72,31 @@ class ToolModel(Base):
 
     # relationships
     step = relationship("StepModel", back_populates="tools")
+  
+class DisassemblyModel(Base):
+    __tablename__ = "disassemblies"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    total_time = Column(Integer, nullable=False)
+    batteryPack_id = Column(UUID(as_uuid=True), ForeignKey("batteryPack.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc)) 
+
+    # relationships
+    battery_pack = relationship("BatteryPackModel", back_populates="disassemblies")
+    timers = relationship("TimerModel", back_populates="disassembly", cascade="all, delete-orphan")
+      
+class TimerModel(Base):
+    __tablename__ = "timers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    length = Column(Integer, nullable=False)
+    step_id = Column(UUID(as_uuid=True), ForeignKey("steps.id"), nullable=False)
+    disassembly_id = Column(UUID(as_uuid=True), ForeignKey("disassemblies.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc)) 
+
+    # relationships
+    step = relationship("StepModel", back_populates="timers")
+    disassembly = relationship("DisassemblyModel", back_populates="timers")
+
+
 
 
 # -------------------------- CREATE DB --------------------------
