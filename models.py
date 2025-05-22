@@ -1,13 +1,16 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from datetime import timezone, datetime
-from sqlalchemy import create_engine,Column, String, Integer, ForeignKey, Float, DateTime
+from sqlalchemy import create_engine,Column, String, Integer, ForeignKey, Float, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, sessionmaker
 import uuid
-from dotenv import load_dotenv
+
 import os
 
-load_dotenv()
+
 
 Base = declarative_base()
 
@@ -41,6 +44,8 @@ class StepModel(Base):
     sub_steps = relationship("SubStepModel", back_populates="step", cascade="all, delete-orphan")
     pictures = relationship("PictureModel", back_populates="step", cascade="all, delete-orphan")
     tools = relationship("ToolModel", back_populates="step", cascade="all, delete-orphan")
+    comments = relationship("CommentModel", back_populates="step", cascade="all, delete-orphan")
+
 
 class SubStepModel(Base):
     __tablename__ = "sub_steps"
@@ -95,8 +100,17 @@ class TimerModel(Base):
     # relationships
     step = relationship("StepModel", back_populates="timers")
     disassembly = relationship("DisassemblyModel", back_populates="timers")
+    
+class CommentModel(Base):
+    __tablename__ = "comments"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    text = Column(String, nullable=False)
+    step_id = Column(UUID(as_uuid=True), ForeignKey("steps.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now(timezone.utc)) 
+    save = Column(Boolean, default=False)
 
-
+    # relationships
+    step = relationship("StepModel", back_populates="comments")
 
 
 # -------------------------- CREATE DB --------------------------

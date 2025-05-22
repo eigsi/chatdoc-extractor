@@ -6,7 +6,6 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 from glob import glob
-import json
 from utils.images import extract_main_image, extract_step_images, _extract_images_from_page
 from models import init_db
 from dotenv import load_dotenv

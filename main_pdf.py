@@ -3,14 +3,13 @@ from langchain.chat_models import init_chat_model
 from typing_extensions import List, TypedDict, Optional
 from langchain_core.documents import Document
 from langgraph.graph import START, StateGraph
-from initiate import create_vector_store, prompt, PERSIST_DIR, LLM_NAME
+from initiate_pdf import create_vector_store, prompt, PERSIST_DIR, LLM_NAME
 from pydantic import BaseModel, ValidationError
 from models import SessionLocal, BatteryPackModel,StepModel, SubStepModel, ToolModel, PictureModel
 import uuid
 from glob import glob
 import json
 from utils.images import extract_step_images 
-import sys
 
 llm = init_chat_model(LLM_NAME, model_provider="openai")
 vector_store = create_vector_store(PERSIST_DIR)
@@ -69,7 +68,7 @@ question = (
     "  1. From the “Description:” section, generate concise bullet-point sub-steps.\n"
     "  2. List required tools.\n"
     "  3. Take the duration from the “Time Estimation:” field.\n"
-    "  4. Summarize the “Identified Risks:” in a single very short phrase.\n"
+    "  4. Summarize the “Identified Risks:” in a single very short phrase,  excluding any risks related to repetitive tasks.\n"
     "  5. Insert the corresponding photo paths (from metadata) under “pictures”."
 )
 
