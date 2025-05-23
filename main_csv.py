@@ -7,9 +7,11 @@ from typing_extensions import List, TypedDict, Optional
 from langgraph.graph import START, StateGraph
 from initiate_csv import prompt, LLM_NAME
 from pydantic import BaseModel, ValidationError
-from models import SessionLocal, BatteryPackModel,StepModel, SubStepModel, ToolModel
+from models import SessionLocal, BatteryPackModel,StepModel, SubStepModel, ToolModel, PictureModel
 import uuid
-import json
+import os, re, requests, json
+from urllib.parse import urlparse
+import pandas as pd
 
 DOCS_PATH = "docs/Disassembly.csv"
 
@@ -58,15 +60,52 @@ question = (
 result = graph.invoke({ "question": question })
 answer_text = result["answer"]
 
-# --------------------------- SAVE ANSWER ---------------------------
+# ------------------------- RETREIVE URL ---------------------------
+df = pd.read_csv(DOCS_PATH, encoding="utf-8")
+raw_pack = df["Battery Pack Model"].dropna().iloc[0] # Extract the bp name
+safe_pack = re.sub(r'[^A-Za-z0-9_-]', '_', raw_pack).lower() # Clean the bp name
+os.makedirs("images", exist_ok=True)
+images_map = {}
+for _, row in df.iterrows():
+    n = int(row["Step Number"])
+    pics = row.get("Annotated Pictures", "")
+    if pd.isna(pics) or not pics.strip(): 
+        continue
+    urls = re.findall(r'https?://[^\s\)\,]+', pics)
+    images_map[n] = urls
+    
+# --------------------------- DL IMAGES -----------------------------
+local_images = {}
+for step_num, urls in images_map.items():
+    local_images[step_num] = []
+    for idx, url in enumerate(urls, 1):
+        try:
+            r = requests.get(url, timeout=10); r.raise_for_status()
+        except Exception as e:
+            print(f"Error while downloading {url}: {e}")
+            continue
+        ext = os.path.splitext(urlparse(url).path)[1] or ".jpg"
+        fname = f"{safe_pack}_step_{step_num}_img{idx}{ext}"
+        path = os.path.join("images", fname)
+        with open(path, "wb") as f:
+            f.write(r.content)
+        local_images[step_num].append(path)
 
-print(answer_text)
+# ---------------------- ADD IMAGES TO THE JSON ----------------------
+
+data = json.loads(answer_text)
+for pack in data.get("batteryPacks", []):
+    for step in pack.get("steps", []):
+        pics = local_images.get(step["number"], [])
+        step["pictures"] = pics if pics else None
+answer_text = json.dumps(data, ensure_ascii=False)
+
 
 # -------------------------- VERIFY ANSWER --------------------------
 class SubStep(BaseModel):
     name: str
     number: int
-
+    
 class Tool(BaseModel):
     name: str
 
@@ -85,7 +124,7 @@ class BatteryPack(BaseModel):
     steps: List[Step]
 
 class BatteryPacksList(BaseModel):
-    batteryPacks: List[BatteryPack]
+    batteryPacks: List[BatteryPack] 
 
 
 try: 
@@ -97,63 +136,54 @@ except(json.JSONDecodeError, ValidationError) as e:
 
 doc_dict = doc.model_dump()
 
-# -------------------------- ADD ALL ID --------------------------
-for pack in doc_dict["batteryPacks"]:
-        pack_id = uuid.uuid4()
-        pack["id"] = str(pack_id)
-        for step in pack["steps"]:
-            step_id = uuid.uuid4()
-            step["id"] = str(step_id)
-            step["batteryPack_id"] = str(pack_id)
-            for sub in step["sub_steps"]:
-                sub_id = uuid.uuid4()
-                sub["id"] = str(sub_id)
-                sub["step_id"] = str(step_id)
-            for pic in step.get("pictures") or []:
-                pic_id = uuid.uuid4()
-                pic["id"] = str(pic_id)
-                pic["step_id"] = str(step_id)
-            for tool in step["tools"]:
-                tool_id = uuid.uuid4()
-                tool["id"] = str(tool_id)
-                tool["step_id"] = str(step_id)
-
 # ----------------------- ADD ANSWER TO DB -------------------------
 session = SessionLocal()
 try: 
     # BatteryPack
     for pack in doc_dict["batteryPacks"]:
+        pack_id = str(uuid.uuid4())
         bp = BatteryPackModel(
-            id=pack["id"],
+            id=pack_id,
             name=pack["name"],
             picture=pack.get("picture")
         )
         # Steps
         for step in pack["steps"]:
+            step_id = str(uuid.uuid4())
             st = StepModel(
-                id=step["id"],
+                id=step_id,
                 name=step["name"],
                 number=step["number"],
                 risks=step["risks"],
                 time=step["time"],
-                batteryPack_id=step["batteryPack_id"]
+                batteryPack_id=pack_id
             )  
             # Sub Steps
             for sub in step["sub_steps"]:
                 ss = SubStepModel(
-                    id=sub["id"],
+                    id=str(uuid.uuid4()),
                     name=sub["name"],
                     number=sub["number"],
-                    step_id=sub["step_id"]
+                    step_id=step_id
                 )
                 st.sub_steps.append(ss)
+                
+            # Pictures
+            for pic_path in step.get("pictures") or []:
+                pic_obj = PictureModel(
+                    id=str(uuid.uuid4()),
+                    link=pic_path,
+                    step_id=step_id,
+                )
+                st.pictures.append(pic_obj)
+            
 
             # Tools
             for tool in step["tools"]:
                 tool_obj = ToolModel(
-                    id=tool["id"],
+                    id=str(uuid.uuid4()),
                     name=tool["name"],
-                    step_id=tool["step_id"]
+                    step_id=step_id,
                 )
                 st.tools.append(tool_obj)
 
